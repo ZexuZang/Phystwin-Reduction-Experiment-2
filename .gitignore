@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Editors
+.vscode/
+.idea/
+
+# Data, checkpoints, and generated outputs
+data/*
+!data/.gitkeep
+results/*
+!results/.gitkeep
+outputs/
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+*.pkl
+*.npz
+*.ply
+*.mp4
+*.avi
+*.mov
+*.zip
+
+# Logs
+*.log
+wandb/
+runs/
+
+# OS
+.DS_Store
+Thumbs.db

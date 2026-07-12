@@ -1,0 +1,12 @@
+scene: double_stretch_sloth
+stage1_ratio: 0.5
+node_keep_ratio: 0.8
+max_cluster_size: 8
+spring_keep_ratio: 0.3
+online_error_weight: 0.3
+bt_weight: 0.7
+local_budget: 300
+max_input_nodes: 2
+reduced_order: 20
+min_degree: 1
+seed: 42
