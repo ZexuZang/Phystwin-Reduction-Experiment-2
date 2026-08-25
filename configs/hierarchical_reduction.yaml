@@ -1,0 +1,23 @@
+# Paper-oriented default configuration
+scene: double_stretch_sloth
+split:
+  stage1_ratio: 0.50
+  update_ratio: 0.50
+node:
+  method: soar
+  keep_ratio: 0.50
+  rank: 5
+  alpha_dyn: 1.0
+  beta_geo: 1.0
+  protect_top_pct: 10.0
+  max_cluster_size: 16
+  mapping_k: 4
+spring:
+  keep_ratio: 0.50
+  bt_weight: 0.70
+  online_error_weight: 0.30
+  min_degree: 1
+  local_budget: 300
+  reduced_order: 20
+evaluation:
+  metrics: [chamfer, track, psnr, ssim, lpips, iou, simulation_fps]
