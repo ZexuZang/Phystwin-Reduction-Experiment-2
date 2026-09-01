@@ -91,6 +91,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--skip-stage1-training", action="store_true")
 
     p.add_argument(
+    "--baseline-mode",
+    choices=["original", "stage1"],
+    default="original",
+    help=(
+        "Baseline source. 'original' uses the archived PhysTwin "
+        "checkpoint and inference under experiments/<scene>. "
+        "'stage1' reproduces the previous behavior and trains a "
+        "new Stage-1 full model."
+    ),
+)
+
+    p.add_argument(
         "--node-method",
         choices=["geometry", "trajectory", "krylov", "soar"],
         default="soar",
@@ -193,29 +205,82 @@ def main() -> None:
     print("node method  :", a.node_method)
     print("node keep    :", a.node_keep_ratio)
     print("final budgets:", a.final_spring_ratios)
+    print("baseline mode:", a.baseline_mode)
+
 
     # ------------------------------------------------------------------
-    # Full Stage-1 model / topology / rollout
+    # Canonical Full baseline
     # ------------------------------------------------------------------
-    stage1_ckpt = a.stage1_checkpoint.expanduser().resolve() if a.stage1_checkpoint else None
+
+    canonical_original_ckpt = (
+        root
+        / "experiments"
+        / a.scene
+        / "train"
+        / "best_199.pth"
+    )
+
+    canonical_original_inference = (
+        root
+        / "experiments"
+        / a.scene
+        / "inference.pkl"
+    )
+
+    # Explicit CLI checkpoint always has highest priority.
+    stage1_ckpt = (
+        a.stage1_checkpoint.expanduser().resolve()
+        if a.stage1_checkpoint is not None
+        else None
+    )
+
     if stage1_ckpt is None:
-        if a.skip_stage1_training:
-            raise ValueError("--skip-stage1-training requires --stage1-checkpoint")
-        if not (a.resume and list(stage1_dir.rglob("best_*.pth"))):
-            run(
-                [
-                    python_bin,
-                    SCRIPTS / "train_stage1.py",
-                    "--phystwin-root", root,
-                    "--scene", a.scene,
-                    "--base-path", base_path,
-                    "--train-frame", stage1_end,
-                    "--output-dir", stage1_dir,
-                    "--seed", a.seed,
-                ],
-                env=env,
-            )
-        stage1_ckpt = best_checkpoint(stage1_dir)
+
+        if a.baseline_mode == "original":
+
+            # Canonical Original PhysTwin checkpoint.
+            stage1_ckpt = canonical_original_ckpt.resolve()
+
+            if not stage1_ckpt.is_file():
+                raise FileNotFoundError(
+                    "Canonical Original PhysTwin checkpoint not found: "
+                    f"{stage1_ckpt}"
+                )
+
+            print("\n===== CANONICAL ORIGINAL BASELINE =====")
+            print("checkpoint :", stage1_ckpt)
+            print("inference  :", canonical_original_inference)
+
+        else:
+
+            # Legacy behavior: train a new Stage-1 full model.
+            if a.skip_stage1_training:
+                raise ValueError(
+                    "--skip-stage1-training requires "
+                    "--stage1-checkpoint when "
+                    "--baseline-mode=stage1"
+                )
+
+            if not (
+                a.resume
+                and list(stage1_dir.rglob("best_*.pth"))
+            ):
+                run(
+                    [
+                        python_bin,
+                        SCRIPTS / "train_stage1.py",
+                        "--phystwin-root", root,
+                        "--scene", a.scene,
+                        "--base-path", base_path,
+                        "--train-frame", stage1_end,
+                        "--output-dir", stage1_dir,
+                        "--seed", a.seed,
+                    ],
+                    env=env,
+                )
+
+            stage1_ckpt = best_checkpoint(stage1_dir)
+
     if not stage1_ckpt.is_file():
         raise FileNotFoundError(stage1_ckpt)
 
@@ -237,23 +302,62 @@ def main() -> None:
         )
 
     if a.stage1_inference is not None:
-        full_inference = a.stage1_inference.expanduser().resolve()
+
+        full_inference = (
+            a.stage1_inference
+            .expanduser()
+            .resolve()
+        )
+
         if not full_inference.is_file():
             raise FileNotFoundError(full_inference)
+
+
+    elif a.baseline_mode == "original":
+
+        full_inference = (
+            canonical_original_inference
+            .resolve()
+        )
+
+        if not full_inference.is_file():
+            raise FileNotFoundError(
+                "Canonical Original PhysTwin inference not found: "
+                f"{full_inference}"
+            )
+
+        print(
+            "Using canonical Original inference:",
+            full_inference,
+        )
+
+
     else:
-        full_inference = stage1_rollout / "inference.pkl"
-        if not (a.resume and full_inference.is_file()):
+
+        full_inference = (
+            stage1_rollout
+            / "inference.pkl"
+        )
+
+        if not (
+            a.resume
+            and full_inference.is_file()
+        ):
+
             run(
                 [
                     python_bin,
                     SCRIPTS / "run_external_topology_inference.py",
+
                     "--phystwin-root", root,
                     "--scene", a.scene,
                     "--base-path", base_path,
                     "--train-frame", train_end,
+
                     "--model-path", stage1_ckpt,
                     "--topology-path", full_topology,
                     "--output-dir", stage1_rollout,
+
                     "--seed", a.seed,
                 ],
                 env=env,
