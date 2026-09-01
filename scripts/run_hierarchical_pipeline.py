@@ -420,6 +420,7 @@ def main() -> None:
                 "--base_path", base_path,
                 "--case_name", a.scene,
                 "--coarsened_data", node_trainer,
+                "--parent_checkpoint",stage1_ckpt,
                 "--out_dir", retrain_dir,
                 "--device", a.device,
                 "--train_frame", stage1_end,

@@ -231,6 +231,15 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--retrain_epochs", type=int, default=200)
     p.add_argument("--checkpoint_interval", type=int, default=20)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--parent_checkpoint",
+        type=Path,
+        help=(
+            "Canonical Original PhysTwin checkpoint. "
+            "Collision/friction parameters are initialized from this "
+            "checkpoint before reduced-model retraining."
+        ),
+    )
     p.add_argument("--spring_Y_min_override", type=float)
     p.add_argument("--spring_Y_max_override", type=float)
     return p.parse_args()
@@ -328,9 +337,76 @@ def main() -> None:
         spring_Y_min_override=args.spring_Y_min_override,
         spring_Y_max_override=args.spring_Y_max_override,
     )
-    best = train_best(
-        trainer, cfg, wp, logger, tqdm, out_dir, args.checkpoint_interval
-    )
+    # --------------------------------------------------------------
+    # Initialize global physical parameters from canonical Original.
+    #
+    # spring_Y is NOT copied directly because the node-reduced graph
+    # has a different number of springs. Its reduced spring_Y was
+    # already inherited through reduced_spring_Y_init in trainer.npz.
+    #
+    # Collision/friction parameters, however, have compatible shapes
+    # and should come directly from the Original parent checkpoint.
+    # --------------------------------------------------------------
+
+    if args.parent_checkpoint is not None:
+        parent_checkpoint = (
+            args.parent_checkpoint
+            .expanduser()
+            .resolve()
+        )
+
+        if not parent_checkpoint.is_file():
+            raise FileNotFoundError(
+                f"Parent checkpoint not found: {parent_checkpoint}"
+            )
+
+        parent = torch.load(
+            parent_checkpoint,
+            map_location=args.device,
+            weights_only=False,
+        )
+
+        required_parent_keys = [
+            "collide_elas",
+            "collide_fric",
+            "collide_object_elas",
+            "collide_object_fric",
+        ]
+
+        missing_parent_keys = [
+            key
+            for key in required_parent_keys
+            if key not in parent
+        ]
+
+        if missing_parent_keys:
+            raise KeyError(
+                "Parent checkpoint missing required keys: "
+                f"{missing_parent_keys}"
+            )
+
+        trainer.simulator.set_collide(
+            parent["collide_elas"].detach().clone(),
+            parent["collide_fric"].detach().clone(),
+        )
+
+        trainer.simulator.set_collide_object(
+            parent["collide_object_elas"].detach().clone(),
+            parent["collide_object_fric"].detach().clone(),
+        )
+
+        print(
+            "parent checkpoint =",
+            parent_checkpoint,
+        )
+
+        print(
+            "Initialized reduced model collision/friction "
+            "parameters from canonical Original."
+        )
+        best = train_best(
+            trainer, cfg, wp, logger, tqdm, out_dir, args.checkpoint_interval
+        )
 
     print("best checkpoint =", best)
     print("Running fresh dense inference from the best Stage-1 reduced checkpoint ...")
