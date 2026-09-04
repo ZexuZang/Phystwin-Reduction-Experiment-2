@@ -359,34 +359,46 @@ def benchmark_one(
     label: str,
     trainer: Path,
     checkpoint: Path,
-    test_start: int,
-    test_end: int,
+    measure_start: int,
+    measure_end: int,
     repeats: int,
     output: Path,
     env: dict[str, str],
 ) -> None:
+
     run(
         [
             python_bin,
+
             SCRIPTS / "benchmark_hierarchical_fps.py",
+
             "--phystwin-root",
             root,
+
             "--scene",
             scene,
+
             "--mode",
             "reduced",
+
             "--label",
             label,
+
             "--coarse-path",
             trainer,
+
             "--checkpoint",
             checkpoint,
+
             "--measure-start",
-            test_start,
+            measure_start,
+
             "--measure-end",
-            test_end,
+            measure_end,
+
             "--repeats",
             repeats,
+
             "--output",
             output,
         ],
@@ -525,7 +537,14 @@ def main() -> None:
             a.min_fps_retention,
         )
     if not 0.0 < a.source_final_ratio <= 1.0:
-        raise ValueError("--source-final-ratio must be in (0,1]")
+        raise ValueError(
+            "--source-final-ratio must be in (0,1]"
+        )
+
+    if not 0.0 < a.min_fps_retention <= 1.0:
+        raise ValueError(
+            "--min-fps-retention must be in (0,1]"
+        )
     if any(
         not 0.0 < ratio <= 1.0
         for ratio in target_ratios
@@ -665,8 +684,8 @@ def main() -> None:
                 label=f"Source-{source_tag}",
                 trainer=source_trainer,
                 checkpoint=source_checkpoint,
-                test_start=fps_start,
-                test_end=train_end,
+                measure_start=fps_start,
+                measure_end=train_end,
                 repeats=a.fps_repeats,
                 output=source_fps_json,
                 env=env,
@@ -921,22 +940,11 @@ def main() -> None:
                     python_bin=python_bin,
                     root=root,
                     scene=a.scene,
-                    label=(
-                        f"Recovery-{target_ratio:.4f}"
-                    ),
-                    trainer=(
-                        winner_dir
-                        / "trainer.npz"
-                    ),
-                    checkpoint=(
-                        winner_joint_dir
-                        / "best_joint_nsf.pth"
-                    ),
-                    test_start=max(
-                        1,
-                        train_start,
-                    ),
-                    test_end=train_end,
+                    label=f"Recovery-{target_ratio:.4f}",
+                    trainer=winner_dir / "trainer.npz",
+                    checkpoint=winner_joint_dir / "best_joint_nsf.pth",
+                    measure_start=max(1, train_start),
+                    measure_end=train_end,
                     repeats=a.fps_repeats,
                     output=target_fps_json,
                     env=env,
@@ -1050,8 +1058,8 @@ def main() -> None:
                         label=label,
                         trainer=trainer,
                         checkpoint=checkpoint,
-                        test_start=test_start,
-                        test_end=test_end,
+                        measure_start=test_start,
+                        measure_end=test_end,
                         repeats=a.fps_repeats,
                         output=output,
                         env=env,
